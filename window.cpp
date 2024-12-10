@@ -1,23 +1,44 @@
+#include <map>
 #include <ncurses.h>
 #include <string>
 #include <vector>
+int highlight, height, width, list_width, info_width;
 
-// Sample data
 struct Package {
     std::string name;
     std::string description;
+    /*std::map<std::string, std::vector<std::string>> dependencies;*/
+    std::vector<std::string> dependencies;
 };
 
-std::vector<Package> packages = {{"Package A", "Description of Package A."},
-                                 {"Package B", "Description of Package B."},
-                                 {"Package C", "Description of Package C."},
-                                 {"Package D", "Description of Package D."},
-                                 {"Package E", "Description of Package E."}};
+std::vector<Package> packages = {
+    {"Package A", "Description of Package A.", {"python", "c++"}},
+    {"Package B", "Description of Package B.", {"python", "c++"}},
+    {"Package C", "Description of Package C.", {"python", "c++"}},
+    {"Package D", "Description of Package D.", {"python", "c++"}},
+    {"Package E", "Description of Package E.", {"python", "c++"}}};
 
-void draw_interface(WINDOW *list_win, WINDOW *info_win, int highlight) {
-    wclear(list_win);
+void draw_info(WINDOW *info_win, int highlight) {
     wclear(info_win);
+    box(info_win, 0, 0);
+    mvwprintw(info_win, 0, 2, " Package Info ");
+    if (highlight >= 0 && highlight < (int)packages.size()) {
+        Package &pkg = packages[highlight];
+        mvwprintw(info_win, 1, 2, "Name: %s", pkg.name.c_str());
+        mvwprintw(info_win, 2, 2, "Description:");
+        mvwprintw(info_win, 3, 4, "%s", pkg.description.c_str());
+        mvwprintw(info_win, 4, 2, "Dependencies:");
+        std::string dep_list = "";
+        for (std::string x : pkg.dependencies) {
+            dep_list += x + " ";
+        }
+        mvwprintw(info_win, 5, 4, "%s", dep_list.c_str());
+    }
+    wrefresh(info_win);
+}
 
+void draw_list(WINDOW *list_win, int highlight) {
+    wclear(list_win);
     box(list_win, 0, 0);
     mvwprintw(list_win, 0, 2, " Packages ");
     for (size_t i = 0; i < packages.size(); ++i) {
@@ -29,18 +50,7 @@ void draw_interface(WINDOW *list_win, WINDOW *info_win, int highlight) {
             wattroff(list_win, A_REVERSE);
         }
     }
-
-    box(info_win, 0, 0);
-    mvwprintw(info_win, 0, 2, " Package Info ");
-    if (highlight >= 0 && highlight < (int)packages.size()) {
-        mvwprintw(info_win, 1, 2, "Name: %s", packages[highlight].name.c_str());
-        mvwprintw(info_win, 2, 2, "Description:");
-        mvwprintw(info_win, 3, 4, "%s",
-                  packages[highlight].description.c_str());
-    }
-
     wrefresh(list_win);
-    wrefresh(info_win);
 }
 
 int main() {
@@ -50,18 +60,12 @@ int main() {
     keypad(stdscr, TRUE);
     curs_set(0);
 
-    int height, width;
     getmaxyx(stdscr, height, width);
-
-    int list_width = width / 3;
-    int info_width = width - list_width;
+    list_width = width / 3;
+    info_width = width - list_width;
 
     WINDOW *list_win = newwin(height, list_width, 0, 0);
     WINDOW *info_win = newwin(height, info_width, 0, list_width);
-
-    int highlight = 0;
-
-    draw_interface(list_win, info_win, highlight);
 
     int ch;
     while (true) {
@@ -75,7 +79,8 @@ int main() {
             if (highlight < (int)packages.size() - 1)
                 ++highlight;
         }
-        draw_interface(list_win, info_win, highlight);
+        draw_info(info_win, highlight);
+        draw_list(list_win, highlight);
     }
 
     delwin(list_win);
