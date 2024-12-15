@@ -1,8 +1,10 @@
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <iostream>
+#include <ncurses.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -10,49 +12,15 @@
 namespace fs = std::filesystem;
 
 std::vector<std::string> files;
-std::string rootPath = "/home/duck/", seq1 = "yarn";
+std::string rootPath = "/", word;
 std::vector<std::pair<int, int>> list;
 
-typedef enum {
-    MATCH = 1,
-    MISMATCH = -1,
-    GAP = -2,
-    SPECIAL_PLACE_BONUS = 2,
-} score_t;
-
-/*int smithWaterman(const std::string &seq1, const std::string &seq2) {*/
-/*    size_t m = seq1.size();*/
-/*    size_t n = seq2.size();*/
-/**/
-/*    std::vector<std::vector<int>> scoreMatrix(m + 1, std::vector<int>(n + 1, 0));*/
-/**/
-/*    int maxScore = 0;*/
-/*    size_t maxI = 0, maxJ = 0;*/
-/**/
-/*    for (size_t i = 1; i <= m; ++i) {*/
-/*        for (size_t j = 1; j <= n; ++j) {*/
-/*            int match = (seq1[i - 1] == seq2[j - 1]) ? MATCH : MISMATCH;*/
-/**/
-/*            scoreMatrix[i][j] = std::max({0, scoreMatrix[i - 1][j - 1] + match, scoreMatrix[i - 1][j] + GAP, scoreMatrix[i][j - 1] + GAP});*/
-/**/
-/*            if (scoreMatrix[i][j] > maxScore) {*/
-/*                maxScore = scoreMatrix[i][j];*/
-/*                maxI = i;*/
-/*                maxJ = j;*/
-/*            }*/
-/*        }*/
-/*    }*/
-/**/
-/*    // Bonus logic*/
-/*    if (seq1.compare(0, seq2.size(), seq2) == 0) {*/
-/*        maxScore += SPECIAL_PLACE_BONUS;*/
-/*    }*/
-/*    if (seq1.compare(seq1.size() - seq2.size(), seq2.size(), seq2) == 0) {*/
-/*        maxScore += SPECIAL_PLACE_BONUS;*/
-/*    }*/
-/**/
-/*    return maxScore;*/
-/*}*/
+const int ScoreMatch = 16;
+const int ScoreGapStart = -3;
+const int ScoreGapExtension = -1;
+const int BonusBoundary = ScoreMatch / 2;
+const int BonusConsecutive = -(ScoreGapStart + ScoreGapExtension);
+const int BonusFirstCharMultiplier = 2;
 
 int smithWaterman(const std::string &seq1, const std::string &seq2) {
     const int ScoreMatch = 16;
@@ -99,37 +67,66 @@ int smithWaterman(const std::string &seq1, const std::string &seq2) {
     return maxScore;
 }
 
-std::vector<std::string> listFiles() {
-    std::vector<std::string> results;
-
+void listFiles() {
+    files.clear();
     try {
         for (auto const &entry : fs::directory_iterator(rootPath)) {
             if (entry.is_regular_file() || entry.is_directory()) {
-                results.push_back(entry.path());
+                files.push_back(entry.path());
             }
         }
     } catch (const fs::filesystem_error &e) {
-        std::cerr << "There is an error: " << e.what() << "\n";
+        std::cerr << "There is an error while listing files of your system, here is the error you want to check it out: " << e.what() << "\n";
     };
-
-    return results;
 }
 
-void comparingFiles(std::vector<std::string> &files, std::string &pattern) {
-    list.clear();
+void comparingFiles(std::string &pattern) {
     for (size_t i = 0; i < files.size(); i++) {
         int score = smithWaterman(files[i], pattern);
         list.push_back({score, i});
     }
+    std::sort(list.begin(), list.end(), std::greater<>());
 }
-void search() { std::string search; }
+
+void drawResults(WINDOW *win) {
+    std::string resList = "";
+    wclear(win);
+    box(win, 0, 0);
+    mvwprintw(win, 0, 1, " Search results ");
+    for (size_t i = 0; i < files.size(); i++) {
+        /*TODO: It will go down a line then overlay the frame */
+        resList += files[list[i].second] + "\n";
+    }
+    mvwprintw(win, 1, 3, "%s", resList.c_str());
+    wrefresh(win);
+}
+
+void draw() {
+    initscr();
+    noecho();
+    cbreak();
+    keypad(stdscr, true);
+    curs_set(0);
+
+    int height, width;
+    getmaxyx(stdscr, height, width);
+
+    WINDOW *results = newwin(height, width, 0, 0);
+
+    int8_t ch;
+    while (true) {
+        ch = getch();
+        if (ch == 'q' || ch == 'Q') {
+            break;
+        }
+        drawResults(results);
+    }
+    delwin(results);
+    endwin();
+}
 
 int main() {
-    files = listFiles();
-    comparingFiles(files, seq1);
-    std::sort(list.begin(), list.end(), std::greater<>());
-    for (size_t i = 0; i < files.size(); i++) {
-        std::cout << files[list[i].second] << " scored " << list[i].first << "\n";
-    }
-    return 0;
+    listFiles();
+    comparingFiles(word);
+    draw();
 }

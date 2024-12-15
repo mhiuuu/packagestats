@@ -1,4 +1,3 @@
-#include <map>
 #include <ncurses.h>
 #include <string>
 #include <vector>
@@ -7,16 +6,10 @@ int highlight, height, width, list_width, info_width;
 struct Package {
     std::string name;
     std::string description;
-    /*std::map<std::string, std::vector<std::string>> dependencies;*/
     std::vector<std::string> dependencies;
 };
 
-std::vector<Package> packages = {
-    {"Package A", "Description of Package A.", {"python", "c++"}},
-    {"Package B", "Description of Package B.", {"python", "c++"}},
-    {"Package C", "Description of Package C.", {"python", "c++"}},
-    {"Package D", "Description of Package D.", {"python", "c++"}},
-    {"Package E", "Description of Package E.", {"python", "c++"}}};
+std::vector<Package> packages = {{"Package A", "Description of Package A.", {"python", "c++"}}, {"Package B", "Description of Package B.", {"python", "c++"}}, {"Package C", "Description of Package C.", {"python", "c++"}}, {"Package D", "Description of Package D.", {"python", "c++"}}, {"Package E", "Description of Package E.", {"python", "c++"}}};
 
 void draw_info(WINDOW *info_win, int highlight) {
     wclear(info_win);
