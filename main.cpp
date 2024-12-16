@@ -1,41 +1,47 @@
-#include "./algo/algo.h"
 #include <array>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
-/*std::string exec(const char *cmd) {*/
-/*    std::array<char, 128> buffer;*/
-/*    std::string result;*/
-/*    std::unique_ptr<FILE, void (*)(FILE *)> pipe(popen(cmd, "r"), [](FILE *f) {*/
-/*        if (f)*/
-/*            std::ignore = pclose(f);*/
-/*    });*/
-/**/
-/*    if (!pipe) {*/
-/*        throw std::runtime_error("popen() failed!");*/
-/*    }*/
-/**/
-/*    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {*/
-/*        result += buffer.data();*/
-/*    }*/
-/**/
-/*    return result;*/
-/*}*/
-/**/
-/*int main() {*/
-/*    try {*/
-/*        const char *command = "yay -Q";*/
-/**/
-/*        std::string output = exec(command);*/
-/**/
-/*        std::cout << output;*/
-/*    } catch (const std::exception &e) {*/
-/*        std::cerr << "Error: " << e.what() << std::endl;*/
-/*    }*/
-/**/
-/*    return 0;*/
-/*}*/
+std::string exec(const char *cmd) {
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, void (*)(FILE *)> pipe(popen(cmd, "r"), [](FILE *f) {
+        if (f)
+            std::ignore = pclose(f);
+    });
+    if (!pipe) {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
 
-int main() {}
+    return result;
+}
+
+int main() {
+    try {
+        const char *command = "yay -Q";
+        std::string output = exec(command);
+        std::istringstream stream(output);
+        std::string line;
+        while (std::getline(stream, line)) {
+            std::istringstream lineStream(line);
+            std::string packageName;
+            if (lineStream >> packageName) {
+                packageNames.push_back(packageName);
+            }
+        }
+        for (const auto &name : packageNames) {
+            std::cout << name << std::endl;
+        }
+    } catch (const std::exception &e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
+
+    return 0;
+}

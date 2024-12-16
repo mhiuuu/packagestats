@@ -1,6 +1,11 @@
+/*
+ * This code was implemented by myself which is just a part of the learning process while working on this project.
+ * The complexity of the code is extremely high O(n^2.m) which is the Smith-Watermen algorithm itself is already O(m.n). The O(n) is allocated for the time where you have to run through n amount of elements in the list
+ * The code performs great with a small list which is about only few hundreds. However, when the number is bigger, expect the application to be extremely lag and the program to eat half of your RAM
+ * USE AT YOUR OWN RISK
+ */
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <iostream>
@@ -12,7 +17,7 @@
 namespace fs = std::filesystem;
 
 std::vector<std::string> files;
-std::string rootPath = "/", word;
+std::string rootPath = "/", word = "yarn";
 std::vector<std::pair<int, int>> list;
 
 const int ScoreMatch = 16;
@@ -70,7 +75,7 @@ int smithWaterman(const std::string &seq1, const std::string &seq2) {
 void listFiles() {
     files.clear();
     try {
-        for (auto const &entry : fs::directory_iterator(rootPath)) {
+        for (auto const &entry : fs::recursive_directory_iterator(rootPath)) {
             if (entry.is_regular_file() || entry.is_directory()) {
                 files.push_back(entry.path());
             }
@@ -94,10 +99,8 @@ void drawResults(WINDOW *win) {
     box(win, 0, 0);
     mvwprintw(win, 0, 1, " Search results ");
     for (size_t i = 0; i < files.size(); i++) {
-        /*TODO: It will go down a line then overlay the frame */
-        resList += files[list[i].second] + "\n";
+        mvwprintw(win, 1 + i, 2, "%s", files[list[i].second].c_str());
     }
-    mvwprintw(win, 1, 3, "%s", resList.c_str());
     wrefresh(win);
 }
 
@@ -106,22 +109,50 @@ void draw() {
     noecho();
     cbreak();
     keypad(stdscr, true);
-    curs_set(0);
+    curs_set(1);
 
     int height, width;
     getmaxyx(stdscr, height, width);
 
-    WINDOW *results = newwin(height, width, 0, 0);
+    WINDOW *results = newwin(height - 3, width, 3, 0);
+    WINDOW *inputWin = newwin(3, width, 0, 0);
+    box(inputWin, 0, 0);
+    mvwprintw(inputWin, 0, 1, " Search ");
+    wrefresh(inputWin);
 
-    int8_t ch;
+    std::string input = "";
+    int ch;
+    bool updateEnabled = true;
+
     while (true) {
-        ch = getch();
-        if (ch == 'q' || ch == 'Q') {
-            break;
+        if (updateEnabled) {
+            mvwprintw(inputWin, 1, 1, "%s", input.c_str());
+            wclrtoeol(inputWin);
+            wrefresh(inputWin);
+
+            list.clear();
+            comparingFiles(input);
+            drawResults(results);
         }
-        drawResults(results);
+
+        ch = getch();
+        if (ch == 27) {
+            break;
+        } else if (ch == 10) {
+            updateEnabled = !updateEnabled;
+        } else if (updateEnabled) {
+            if (ch == KEY_BACKSPACE || ch == 127) {
+                if (!input.empty()) {
+                    input.pop_back();
+                }
+            } else if (isprint(ch)) {
+                input += ch;
+            }
+        }
     }
+
     delwin(results);
+    delwin(inputWin);
     endwin();
 }
 

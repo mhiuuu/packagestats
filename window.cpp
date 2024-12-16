@@ -1,4 +1,9 @@
+#include <array>
+#include <iostream>
+#include <memory>
 #include <ncurses.h>
+#include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 int highlight, height, width, list_width, info_width;
@@ -9,7 +14,7 @@ struct Package {
     std::vector<std::string> dependencies;
 };
 
-std::vector<Package> packages = {{"Package A", "Description of Package A.", {"python", "c++"}}, {"Package B", "Description of Package B.", {"python", "c++"}}, {"Package C", "Description of Package C.", {"python", "c++"}}, {"Package D", "Description of Package D.", {"python", "c++"}}, {"Package E", "Description of Package E.", {"python", "c++"}}};
+std::vector<Package> packages;
 
 void draw_info(WINDOW *info_win, int highlight) {
     wclear(info_win);
@@ -46,13 +51,55 @@ void draw_list(WINDOW *list_win, int highlight) {
     wrefresh(list_win);
 }
 
+std::string exec(const char *cmd) {
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, void (*)(FILE *)> pipe(popen(cmd, "r"), [](FILE *f) {
+        if (f)
+            std::ignore = pclose(f);
+    });
+    if (!pipe) {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+
+    return result;
+}
+
+void fillPackages() {
+    try {
+        const char *command = "yay -Q";
+        std::string output = exec(command);
+        std::istringstream stream(output);
+        std::string line;
+
+        while (std::getline(stream, line)) {
+            std::istringstream lineStream(line);
+            std::string packageName;
+
+            if (lineStream >> packageName) {
+                Package pkg;
+                pkg.name = packageName;
+                pkg.description = "Description for " + packageName;
+                pkg.dependencies = {"dep1", "dep2"};
+
+                packages.push_back(pkg);
+            }
+        }
+    } catch (const std::exception &e) {
+        std::cerr << "Error: " << e.what() << "\n";
+    }
+}
+
 int main() {
     initscr();
     noecho();
     cbreak();
     keypad(stdscr, TRUE);
     curs_set(0);
-
+    fillPackages();
     getmaxyx(stdscr, height, width);
     list_width = width / 3;
     info_width = width - list_width;
