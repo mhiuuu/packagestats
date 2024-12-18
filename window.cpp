@@ -1,11 +1,17 @@
+#include "include/draw.h"
 #include <array>
+#include <cstddef>
+#include <cstdlib>
+#include <curses.h>
 #include <iostream>
 #include <memory>
+#include <menu.h>
 #include <ncurses.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
 int highlight, height, width, list_width, info_width;
 
 struct Package {
@@ -15,41 +21,6 @@ struct Package {
 };
 
 std::vector<Package> packages;
-
-void draw_info(WINDOW *info_win, int highlight) {
-    wclear(info_win);
-    box(info_win, 0, 0);
-    mvwprintw(info_win, 0, 2, " Package Info ");
-    if (highlight >= 0 && highlight < (int)packages.size()) {
-        Package &pkg = packages[highlight];
-        mvwprintw(info_win, 1, 2, "Name: %s", pkg.name.c_str());
-        mvwprintw(info_win, 2, 2, "Description:");
-        mvwprintw(info_win, 3, 4, "%s", pkg.description.c_str());
-        mvwprintw(info_win, 4, 2, "Dependencies:");
-        std::string dep_list = "";
-        for (std::string x : pkg.dependencies) {
-            dep_list += x + " ";
-        }
-        mvwprintw(info_win, 5, 4, "%s", dep_list.c_str());
-    }
-    wrefresh(info_win);
-}
-
-void draw_list(WINDOW *list_win, int highlight) {
-    wclear(list_win);
-    box(list_win, 0, 0);
-    mvwprintw(list_win, 0, 2, " Packages ");
-    for (size_t i = 0; i < packages.size(); ++i) {
-        if (i == highlight) {
-            wattron(list_win, A_REVERSE);
-        }
-        mvwprintw(list_win, i + 1, 2, "%s", packages[i].name.c_str());
-        if (i == highlight) {
-            wattroff(list_win, A_REVERSE);
-        }
-    }
-    wrefresh(list_win);
-}
 
 std::string exec(const char *cmd) {
     std::array<char, 128> buffer;
@@ -64,7 +35,6 @@ std::string exec(const char *cmd) {
     while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
         result += buffer.data();
     }
-
     return result;
 }
 
@@ -74,11 +44,9 @@ void fillPackages() {
         std::string output = exec(command);
         std::istringstream stream(output);
         std::string line;
-
         while (std::getline(stream, line)) {
             std::istringstream lineStream(line);
             std::string packageName;
-
             if (lineStream >> packageName) {
                 Package pkg;
                 pkg.name = packageName;
@@ -94,37 +62,46 @@ void fillPackages() {
 }
 
 int main() {
-    initscr();
-    noecho();
-    cbreak();
-    keypad(stdscr, TRUE);
-    curs_set(0);
     fillPackages();
+    initWin(true, false, true);
+
     getmaxyx(stdscr, height, width);
     list_width = width / 3;
     info_width = width - list_width;
 
-    WINDOW *list_win = newwin(height, list_width, 0, 0);
-    WINDOW *info_win = newwin(height, info_width, 0, list_width);
+    size_t pkg_list_size = packages.size();
+    ITEM **pkg = (ITEM **)calloc(pkg_list_size + 1, sizeof(ITEM *));
 
-    int ch;
-    while (true) {
-        ch = getch();
-        if (ch == 'q' || ch == 'Q') {
-            break;
-        } else if (ch == KEY_UP) {
-            if (highlight > 0)
-                --highlight;
-        } else if (ch == KEY_DOWN) {
-            if (highlight < (int)packages.size() - 1)
-                ++highlight;
-        }
-        draw_info(info_win, highlight);
-        draw_list(list_win, highlight);
+    for (size_t i = 0; i < pkg_list_size; i++) {
+        pkg[i] = new_item(packages[i].name.c_str(), "");
     }
+    pkg[pkg_list_size] = nullptr;
+    MENU *pkg_list = new_menu(pkg);
 
-    delwin(list_win);
-    delwin(info_win);
+    WINDOW *pkg_win = newwin(height, list_width, 0, 0);
+    keypad(pkg_win, TRUE);
+    set_menu_win(pkg_list, pkg_win);
+    set_menu_sub(pkg_list, derwin(pkg_win, height - 4, list_width - 2, 3, 1));
+    set_menu_format(pkg_list, height - 6, 1);
+    set_menu_mark(pkg_list, " * ");
+
+    box(pkg_win, 0, 0);
+    alignMiddle(pkg_win, 1, 0, list_width, "My menu", COLOR_PAIR(0));
+    drawLine(pkg_win, list_width);
+
+    post_menu(pkg_list);
+    wrefresh(pkg_win);
+
+    attron(COLOR_PAIR(2));
+    mvprintw(LINES - 2, 0, "Use PageUp and PageDown to scroll down or up a page of items");
+    mvprintw(LINES - 1, 0, "Arrow Keys to navigate (F1 to Exit)");
+    attroff(COLOR_PAIR(2));
+    refresh();
+
+    handle_user_input(pkg_list, pkg_win);
+
+    cleanup(pkg_list, pkg, pkg_list_size);
+    delwin(pkg_win);
     endwin();
 
     return 0;
