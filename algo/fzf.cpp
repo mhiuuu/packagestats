@@ -7,8 +7,8 @@ class FileFinder {
 
     void find_paths(const std::string &start_dir) {
         std::string command = "find '" + start_dir +
-                              "' 2>/dev/null | fzf "
-                              "--height=80%";
+                              "' 2>/dev/null | fzf -e "
+                              "--height=80% --query=spotify";
         system(command.c_str());
     }
 
